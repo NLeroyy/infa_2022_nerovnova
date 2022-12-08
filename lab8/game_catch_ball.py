@@ -1,5 +1,6 @@
 import pygame as pg
 from random import randint
+import math
 
 pg.init()
 width = 1100
@@ -21,10 +22,6 @@ colors = [
             purple, lime,
             cyan
         ]
-
-res = 0
-count = 1
-arr_balls = []
 
 def characteristics(x_range, y_range, vx_range,
                     vy_range, r_range, colors):
@@ -161,10 +158,80 @@ def reflection(ball, width, height,
     elif ball['y'] >= height - ball['r']:
         ball['v_y'] = randint(vy_range[0], -1)
 
+#добавим ещё один тип мишеней со своим характером движения
+def new_target(surface, colors):
+    """Создаёт новую мишень.
+    surface - объект pygame.Surface.
+    colors - массив возможных цветов в формате,
+    подходящем для pygame.Color.
+    """
+
+    global targets
+    target_surf = pg.Surface((40, 40))
+    target_surf.fill((0, 0, 0))
+    color = colors[randint(0, len(colors) - 1)]
+    pg.draw.polygon(target_surf, color,
+                        [[20, 0], [40, 10], [40, 30], [20, 40], [0, 30], [0, 10]])
+    target = {"center_angle": 0, "OMEGA": 1, "omega": 4, "self_angle": 0,
+              "x": 500, "y": 75,"color": color}
+    targets.append(target)
+    surface.blit(target_surf, (500, 75))
+
+def move_targets(surface, targets):
+    """Двигает цели по экрану.
+    targets - массив с параметрами целей.
+    surface - объект pygame.Surface.
+    """
+
+    for target in targets:
+        target["center_angle"] += target["OMEGA"] * dt/2
+        target["self_angle"] += target["omega"] * dt/2
+        #target["center_angle"] %= 360
+        #target["self_angle"] %= 360
+        target_surf = pg.Surface((40, 40))
+        target_surf.fill((0, 0, 0))
+        pg.draw.polygon(target_surf, target["color"],
+                        [[20, 0], [40, 10], [40, 30], [20, 40], [0, 30], [0, 10]])
+        target_surf = pg.transform.rotate(target_surf, -math.degrees(target["self_angle"]))
+        x = 500 + (300*math.sin(target["center_angle"]))
+        y = 375 - (300*math.cos(target["center_angle"]))
+        target["x"] = x
+        target["y"] = y
+        surface.blit(target_surf, (x, y))
+
+def hit_one_target(event, targets):
+    '''Проверяет попадание хотя бы в одну цель,
+    event - объект pygame.Event.
+    targets - Массив содержащий параметры шаров, нахлдящихся на экране.
+
+    '''
+    for target in targets:
+        hit_target(event, target)
+        if hit_t:
+            targets.pop(targets.index(target))
+            break
+
+def hit_target(event, target):
+    '''Проверяет попадание мыши по цели и засчитывает очки.
+    event - объект pygame.Event.
+    target - словарь с параметрами цели.
+
+    '''
+    global res, hit_t
+    if (event.pos[0]-target["x"]-20)**2 + \
+            (event.pos[1]-target["y"]-20)**2 <= 40**2:
+        res += 3   # Засчитывает 3 очка за попадание
+        hit_t = True
+    else:
+        hit_t = False
+
 pg.display.update()
 clock = pg.time.Clock()
 finished = False
 first = True
+res = 0
+arr_balls = []
+targets = []
 
 while not finished:
     dt = clock.tick(FPS) / 1000.0
@@ -173,14 +240,18 @@ while not finished:
             finished = True
         elif event.type == pg.MOUSEBUTTONDOWN:
             hit_one_ball(event, arr_balls)
-            if (len(arr_balls) == 0) or not hit:
+            hit_one_target(event, targets)
+            if len(arr_balls) == 0 or (not hit and not hit_t):
                 new_ball(screen, (60, 900), (60, 550), (-150, 150),
                         (-150, 150), (10, 50), colors)
+            if len(targets) == 0 or (not hit_t and not hit):
+                new_target(screen, colors)
+    move_targets(screen, targets)
     move(arr_balls, width, height, (-150, 150), (-150, 150))
     first_one(screen, (60, 900), (60, 550), (-150, 150),
               (-150, 150), (10, 50), colors)
     pg.display.update()
     screen.fill((0, 0, 0))
 
-print("Количество очков: ", res)
 pg.quit()
+print("Количество очков: ", res)
